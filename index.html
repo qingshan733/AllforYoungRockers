@@ -1,0 +1,453 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>轻松上工查询器</title>
+    <script src="https://cdn.sheetjs.com/xlsx-0.20.1/package/dist/xlsx.full.min.js"></script>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            max-width: 900px;
+            margin: 2rem auto;
+            padding: 0 1rem;
+            background: #f7f9fc;
+            color: #333;
+        }
+        h1 { text-align: center; color: #2c3e50; }
+        .card {
+            background: white;
+            padding: 1.5rem;
+            border-radius: 12px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+            margin-bottom: 1.5rem;
+        }
+        .flex-row {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+            flex-wrap: wrap;
+        }
+        .flex-row input[type="text"] {
+            flex: 1;
+            min-width: 180px;
+            padding: 10px 15px;
+            border: 1px solid #ccc;
+            border-radius: 8px;
+            font-size: 1rem;
+        }
+        button {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 8px;
+            font-size: 1rem;
+            cursor: pointer;
+            font-weight: bold;
+            transition: background 0.2s, transform 0.1s;
+        }
+        button:hover { opacity: 0.9; transform: translateY(-1px); }
+        .btn-primary { background: #3498db; color: white; }
+        .btn-primary:hover { background: #2980b9; }
+        .btn-warning { background: #e67e22; color: white; }
+        .btn-warning:hover { background: #d35400; }
+        .btn-success { background: #27ae60; color: white; }
+        .btn-success:hover { background: #219a52; }
+        .btn-export { background: #8e44ad; color: white; }
+        .btn-export:hover { background: #7d3c98; }
+        .result-area {
+            min-height: 80px;
+            white-space: pre-line;
+            line-height: 1.8;
+            font-size: 0.95rem;
+        }
+        .status-btn {
+            padding: 12px 28px;
+            border: none;
+            border-radius: 30px;
+            font-size: 1.1rem;
+            font-weight: bold;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            letter-spacing: 0.5px;
+            background-color: #e74c3c;
+            color: white;
+            box-shadow: 0 3px 6px rgba(0,0,0,0.1);
+        }
+        .status-btn.green { background-color: #27ae60; }
+        .status-btn:hover { opacity: 0.9; transform: translateY(-2px); }
+        hr { margin: 1rem 0; border: 0.5px dashed #ccc; }
+        .note { font-size: 0.9rem; color: #666; margin-top: 8px; }
+        .current-id { font-weight: bold; color: #2c3e50; margin-left: 10px; }
+    </style>
+</head>
+<body>
+    <h1>❓ 今天你上工了吗</h1>
+
+    <!-- 上传区域 -->
+    <div class="card">
+        <div class="flex-row">
+            <label><strong>📁 表格文件</strong></label>
+            <input type="file" id="fileInput" accept=".xlsx, .xls" style="display:none;">
+            <button id="uploadBtn" class="btn-primary">📤 上传新表格</button>
+            <span id="tableStatus" style="margin-left: 15px; font-size: 0.95rem; color: #7f8c8d;"></span>
+            <div class="note">❗请保证表格第一行为表头，第一列必须为“日期”，第二列必须为“id”，其余列表头为物品名称。
+            <div class="note">❗表内具体内容不设限制，输入第二列任意行内容会自动输出该行其余内容</div>
+       
+      
+        <div class="note">❗首次传后浏览器会自动记忆。点击「上传新表格」会清空旧数据。</div>
+    </div>
+    </div>
+    </div>
+
+    <!-- 查询区域 -->
+    <div class="card">
+        <div class="flex-row">
+            <input type="text" id="idInput" placeholder="请输入 ID（如 1）">
+            <button id="searchBtn" class="btn-primary">🔍 查询</button>
+            <span class="current-id" id="currentIdLabel"></span>
+        </div>
+        <div class="note">输入完整 ID 查询，下方显示订单详情。</div>
+    </div>
+
+    <!-- 结果显示 -->
+    <div class="card result-area" id="resultBox">
+        <span style="color:#aaa;">请先上传表格并输入 ID 查询</span>
+    </div>
+
+    <!-- 操作按钮 -->
+    <div class="card">
+        <div class="flex-row" style="justify-content: center; gap: 20px;">
+            <button class="status-btn" id="btnPacked">🐕 已打包</button>
+            <button class="status-btn" id="btnSwapped">🐇 已互换</button>
+        </div>
+        <div class="flex-row" style="justify-content: center; margin-top: 15px;">
+            <button id="exportBtn" class="btn-export">🤘 导出状态为 Excel</button>
+        </div>
+        <div class="note" style="text-align: center;">导出的 Excel 包含所有订单（按原顺序）当前状态，列名：ID、日期、已打包、已互换。</div>
+        <div class="note" style="text-align: center;">此网页为青衫（73）个人制作，制作简单并未做美化请多担待，有任何使用问题可联系本人。初始为音乐剧《秘密花园》无料互换查询个人使用，方便大量互换打包及线下互换登记/查询。开放为不限圈个人使用。 </div>
+        <div class="note" style="text-align: center;">感谢工友明晭、vv、掉怀星，今天你上工了吗？ </div>
+        <div class="note" style="text-align: center;">all for 孙天宇/蒋易/摇汞青年 </div>
+    </div>
+
+    <script>
+        // ---------- 全局数据 ----------
+        let tableData = [];          // 原始数据行（对象数组）
+        let headers = [];           // 表头数组
+        let lastQueryId = null;     // 当前查询的 ID
+
+        // 状态映射：{ [id]: { packed: boolean, swapped: boolean } }
+        let statusMap = {};
+
+        // DOM 引用
+        const fileInput = document.getElementById('fileInput');
+        const uploadBtn = document.getElementById('uploadBtn');
+        const tableStatus = document.getElementById('tableStatus');
+        const idInput = document.getElementById('idInput');
+        const searchBtn = document.getElementById('searchBtn');
+        const resultBox = document.getElementById('resultBox');
+        const btnPacked = document.getElementById('btnPacked');
+        const btnSwapped = document.getElementById('btnSwapped');
+        const currentIdLabel = document.getElementById('currentIdLabel');
+        const exportBtn = document.getElementById('exportBtn');
+
+        // 本地存储键名
+        const STORAGE_HEADERS = 'orderHeaders';
+        const STORAGE_DATA = 'orderData';
+        const STORAGE_STATUS = 'orderStatusMap';
+        const STORAGE_LASTID = 'orderLastQueryId';
+
+        // ---------- 持久化函数 ----------
+        function saveAllToStorage() {
+            try {
+                localStorage.setItem(STORAGE_HEADERS, JSON.stringify(headers));
+                localStorage.setItem(STORAGE_DATA, JSON.stringify(tableData));
+                localStorage.setItem(STORAGE_STATUS, JSON.stringify(statusMap));
+                if (lastQueryId) {
+                    localStorage.setItem(STORAGE_LASTID, lastQueryId);
+                } else {
+                    localStorage.removeItem(STORAGE_LASTID);
+                }
+            } catch (e) {
+                console.warn('保存到本地存储失败', e);
+            }
+        }
+
+        function loadFromStorage() {
+            const savedHeaders = localStorage.getItem(STORAGE_HEADERS);
+            const savedData = localStorage.getItem(STORAGE_DATA);
+            const savedStatus = localStorage.getItem(STORAGE_STATUS);
+            const savedLastId = localStorage.getItem(STORAGE_LASTID);
+
+            let loaded = false;
+            if (savedHeaders && savedData) {
+                try {
+                    headers = JSON.parse(savedHeaders);
+                    tableData = JSON.parse(savedData);
+                    loaded = true;
+                } catch (e) {
+                    console.error('本地数据解析失败，清空', e);
+                    clearStoredData();
+                }
+            }
+
+            if (loaded) {
+                statusMap = savedStatus ? JSON.parse(savedStatus) : {};
+                lastQueryId = savedLastId || null;
+
+                tableStatus.textContent = `✅ 已加载上次的表格（${tableData.length} 条记录）`;
+                tableStatus.style.color = '#27ae60';
+
+                if (lastQueryId) {
+                    idInput.value = lastQueryId;
+                    updateButtonsFor(lastQueryId);
+                    currentIdLabel.textContent = `当前ID: ${lastQueryId}`;
+                } else {
+                    updateButtonsFor(null);
+                    currentIdLabel.textContent = '';
+                }
+            } else {
+                // 无保存数据
+                headers = [];
+                tableData = [];
+                statusMap = {};
+                lastQueryId = null;
+                tableStatus.textContent = '⚠️ 暂无表格数据，请上传。';
+                tableStatus.style.color = '#e67e22';
+                updateButtonsFor(null);
+            }
+        }
+
+        function clearStoredData() {
+            localStorage.removeItem(STORAGE_HEADERS);
+            localStorage.removeItem(STORAGE_DATA);
+            localStorage.removeItem(STORAGE_STATUS);
+            localStorage.removeItem(STORAGE_LASTID);
+        }
+
+        function resetAllData() {
+            tableData = [];
+            headers = [];
+            statusMap = {};
+            lastQueryId = null;
+            clearStoredData();
+            resultBox.innerHTML = '<span style="color:#aaa;">请先上传表格并输入 ID 查询</span>';
+            idInput.value = '';
+            updateButtonsFor(null);
+            currentIdLabel.textContent = '';
+            tableStatus.textContent = '⚠️ 暂无表格数据，请上传。';
+            tableStatus.style.color = '#e67e22';
+        }
+
+        // ---------- 状态辅助函数 ----------
+        function getStatusObj(id) {
+            if (!statusMap[id]) {
+                statusMap[id] = { packed: false, swapped: false };
+            }
+            return statusMap[id];
+        }
+
+        function updateButtonsFor(id) {
+            if (!id) {
+                btnPacked.classList.remove('green');
+                btnSwapped.classList.remove('green');
+                currentIdLabel.textContent = '';
+                return;
+            }
+            const s = getStatusObj(id);
+            btnPacked.classList.toggle('green', s.packed);
+            btnSwapped.classList.toggle('green', s.swapped);
+            currentIdLabel.textContent = `当前ID: ${id}`;
+        }
+
+        // ---------- 文件处理 ----------
+        uploadBtn.addEventListener('click', () => fileInput.click());
+
+        fileInput.addEventListener('change', (e) => {
+            const file = e.target.files[0];
+            if (!file) return;
+
+            if (tableData.length > 0) {
+                if (!confirm('重新上传将清空当前所有数据及状态，确定继续吗？')) {
+                    fileInput.value = '';
+                    return;
+                }
+            }
+
+            const reader = new FileReader();
+            reader.onload = (loadEvent) => {
+                try {
+                    const data = new Uint8Array(loadEvent.target.result);
+                    const wb = XLSX.read(data, { type: 'array' });
+                    const ws = wb.Sheets[wb.SheetNames[0]];
+                    const json = XLSX.utils.sheet_to_json(ws, { header: 1 });
+
+                    if (json.length < 2) {
+                        alert('表格至少需要表头和一数据行！');
+                        return;
+                    }
+
+                    const rawHeaders = json[0];
+                    const rows = [];
+                    for (let i = 1; i < json.length; i++) {
+                        const row = json[i];
+                        if (!row || row.every(c => c === undefined || c === null || String(c).trim() === '')) continue;
+                        const obj = {};
+                        rawHeaders.forEach((h, idx) => {
+                            const key = h ? String(h).trim() : `Column${idx}`;
+                            obj[key] = row[idx] !== undefined ? row[idx] : '';
+                        });
+                        rows.push(obj);
+                    }
+
+                    tableData = rows;
+                    headers = rawHeaders.map(h => h ? String(h).trim() : '');
+                    statusMap = {};
+                    lastQueryId = null;
+
+                    saveAllToStorage();
+
+                    tableStatus.textContent = `✅ 表格加载成功！共 ${tableData.length} 条记录`;
+                    tableStatus.style.color = '#27ae60';
+                    resultBox.innerHTML = '<span style="color:#27ae60;">表格已更新，请输入 ID 查询。</span>';
+                    idInput.value = '';
+                    updateButtonsFor(null);
+                } catch (err) {
+                    alert('读取文件出错：' + err.message);
+                    console.error(err);
+                }
+            };
+            reader.readAsArrayBuffer(file);
+            fileInput.value = '';
+        });
+
+        // ---------- 查询功能 ----------
+        searchBtn.addEventListener('click', performSearch);
+        idInput.addEventListener('keypress', (e) => { if (e.key === 'Enter') performSearch(); });
+
+        function performSearch() {
+            if (tableData.length === 0) {
+                resultBox.innerHTML = '<span style="color:#e74c3c;">⚠️ 请先上传表格文件！</span>';
+                return;
+            }
+            const searchId = idInput.value.trim();
+            if (!searchId) {
+                resultBox.innerHTML = '<span style="color:#e74c3c;">⚠️ 请输入要查询的 ID！</span>';
+                return;
+            }
+
+            if (headers.length < 2) {
+                resultBox.innerHTML = '<span style="color:#e74c3c;">⚠️ 表格列数不足，无法识别 ID 列。</span>';
+                return;
+            }
+            const idKey = headers[1];
+            const matched = tableData.filter(row => {
+                const v = row[idKey];
+                return v !== null && v !== undefined && String(v).trim() === searchId;
+            });
+
+            if (matched.length === 0) {
+                resultBox.innerHTML = `<span style="color:#e74c3c;">❌ 未找到 ID "${searchId}" 的记录。</span>`;
+                lastQueryId = searchId;
+                updateButtonsFor(searchId);
+                saveAllToStorage();
+                return;
+            }
+
+            lastQueryId = searchId;
+            let html = '';
+            matched.forEach((row, idx) => {
+                if (idx > 0) html += '<hr>';
+                const dateKey = headers[0] || '日期';
+                html += `<strong>${row[dateKey] ?? ''}</strong><br>`;
+                for (let i = 2; i < headers.length; i++) {
+                    const col = headers[i];
+                    if (!col) continue;
+                    const val = row[col];
+                    if (val === undefined || val === null || String(val).trim() === '') continue;
+                    html += `${col}：${val}<br>`;
+                }
+            });
+            resultBox.innerHTML = html;
+            updateButtonsFor(searchId);
+            saveAllToStorage();
+        }
+
+        // ---------- 状态按钮 ----------
+        btnPacked.addEventListener('click', () => {
+            if (!lastQueryId) { alert('请先查询一个 ID！'); return; }
+            const s = getStatusObj(lastQueryId);
+            s.packed = !s.packed;
+            btnPacked.classList.toggle('green', s.packed);
+            saveAllToStorage();
+        });
+
+        btnSwapped.addEventListener('click', () => {
+            if (!lastQueryId) { alert('请先查询一个 ID！'); return; }
+            const s = getStatusObj(lastQueryId);
+            s.swapped = !s.swapped;
+            btnSwapped.classList.toggle('green', s.swapped);
+            saveAllToStorage();
+        });
+
+        // ---------- 导出 Excel（按原表格顺序，含日期）----------
+        exportBtn.addEventListener('click', () => {
+            if (tableData.length === 0) {
+                alert('没有表格数据，无法导出！');
+                return;
+            }
+            if (headers.length < 2) {
+                alert('表格至少需要包含日期和 ID 两列！');
+                return;
+            }
+
+            const idKey = headers[1];
+            const dateKey = headers[0] || '日期';
+
+            const exportRows = [];
+
+            tableData.forEach(row => {
+                const rawId = row[idKey];
+                const idStr = rawId !== undefined && rawId !== null ? String(rawId).trim() : '';
+                const dateStr = row[dateKey] !== undefined ? String(row[dateKey]).trim() : '';
+
+                let packedVal = '';
+                let swappedVal = '';
+                if (idStr !== '') {
+                    const state = statusMap[idStr];
+                    if (state) {
+                        packedVal = state.packed ? 1 : '';
+                        swappedVal = state.swapped ? 1 : '';
+                    }
+                    // 若 statusMap 中没有该 ID 的记录，则视为未勾选，保持空字符串
+                }
+
+                exportRows.push({
+                    'ID': idStr,
+                    '日期': dateStr,
+                    '已打包': packedVal,
+                    '已互换': swappedVal
+                });
+            });
+
+            // 生成 Excel
+            const ws = XLSX.utils.json_to_sheet(exportRows);
+            ws['!cols'] = [
+                { wch: 15 },
+                { wch: 15 },
+                { wch: 12 },
+                { wch: 12 }
+            ];
+            const wb = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(wb, ws, '打包互换状态');
+            XLSX.writeFile(wb, `订单状态_${new Date().toISOString().slice(0,10)}.xlsx`);
+        });
+
+        // ---------- 页面启动 ----------
+        loadFromStorage();
+        // 如果有上次查询 ID，自动展示查询结果
+        if (lastQueryId && tableData.length > 0) {
+            performSearch();
+        }
+    </script>
+</body>
+</html>
